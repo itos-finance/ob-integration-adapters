@@ -73,8 +73,6 @@ export class Closure implements ClosureMetadata, BasePoolState {
         outIdx: number,
         inAmount: Decimal,
     ): [Decimal, Decimal] {
-        console.log("inAmount (bt)", inAmount.toString())
-
         if (inAmount.gte(0) && inAmount.lt(MIN_SWAP_AMOUNT)) {
             throw new MinSwapAmount("In amount less than min swap amount")
         }
