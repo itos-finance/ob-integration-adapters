@@ -1,7 +1,7 @@
 import { Decimal } from 'decimal.js';
 import {
-	type Address,
-	type WatchContractEventOnLogsParameter
+    type Address,
+    type WatchContractEventOnLogsParameter
 } from "viem";
 import { BasePoolStateProvider } from "../../base/BasePoolProvider";
 import { AddressMap } from "../../helpers/AddressMap";
@@ -54,23 +54,23 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         return closures;
     }
 
-	// @param tokenIn: Address of token to swap in 
-	// @param tokenOut: Address of token to swap out
-	// @param amountSpecified: Exact in when positive, exact out when negative. In real terms.
-	// @param amountLimit: Minimum amount out when exact in, maximum amount in when exact out. No limit enforced when 0. In real terms.
+    // @param tokenIn: Address of token to swap in
+    // @param tokenOut: Address of token to swap out
+    // @param amountSpecified: Exact in when positive, exact out when negative. In real terms.
+    // @param amountLimit: Minimum amount out when exact in, maximum amount in when exact out. No limit enforced when 0. In real terms.
     async swap_(
-		closure: Closure, 
-		recipient: Address,
-		tokenIn: Address, 
-		tokenOut: Address, 
-		amountSpecified: bigint, 
-		amountLimit: bigint
-	): Promise<void> {
+        closure: Closure,
+        recipient: Address,
+        tokenIn: Address,
+        tokenOut: Address,
+        amountSpecified: bigint,
+        amountLimit: bigint
+    ): Promise<void> {
         await this.client.simulateContract({
-        	address: closure.pool.metadata.address,
-        	abi: iBurveMultiSwapAbi,
-        	functionName: "swap",
-        	args: [recipient, tokenIn, tokenOut, amountSpecified, amountLimit, closure.cid],
+            address: closure.pool.metadata.address,
+            abi: iBurveMultiSwapAbi,
+            functionName: "swap",
+            args: [recipient, tokenIn, tokenOut, amountSpecified, amountLimit, closure.cid],
         });
     }
 
@@ -125,10 +125,10 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         }
     }
 
-	// NOT IMPLEMENTED - interface methods inherited from BasePoolStateProvider are not compatible with Burve.
+    // NOT IMPLEMENTED - interface methods inherited from BasePoolStateProvider are not compatible with Burve.
     // As each pool contains multiple tokens.
 
-	async swap(pool: Closure, amountIn: bigint, zeroToOne: boolean): Promise<void> {
+    async swap(pool: Closure, amountIn: bigint, zeroToOne: boolean): Promise<void> {
         throw new Error("Not Implemented");
     }
 
