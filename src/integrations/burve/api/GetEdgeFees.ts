@@ -1,5 +1,5 @@
 import { Decimal } from 'decimal.js'
-import { type Client, getContract } from "viem"
+import { type PublicClient, getContract } from "viem"
 import { iBurveMultiSimplexAbi } from "../abi/iBurveMultiSimplexAbi"
 import type { MultiPoolMetadata } from "../types/MultiPool"
 import { X128 } from '../utils'
@@ -7,15 +7,15 @@ import { X128 } from '../utils'
 // Gets all onchain edge fees for a given multi pool
 // Returned array is n x n where n is the number of tokens in the pool 
 // Access should be done with [i][j] where i < j, other locations are NaN
-export async function GetEdgeFees(MultiPoolMetadata: MultiPoolMetadata, client: Client): Promise<number[][]> {
+export async function GetEdgeFees(multiPoolMetadata: MultiPoolMetadata, client: PublicClient): Promise<number[][]> {
     const simplex = getContract({
-        address: MultiPoolMetadata.address,
+        address: multiPoolMetadata.address,
         abi: iBurveMultiSimplexAbi,
         client: client
     });
 
     // token pairs (idx0, idx1) where idx0 < idx1
-    const pairs: [number, number][] = generatePairs(MultiPoolMetadata.tokens.length);
+    const pairs: [number, number][] = generatePairs(multiPoolMetadata.tokens.length);
 
     // Can be batched into a single RPC request if the client enables multicall
     const edgeFeesX128 = await Promise.all(pairs.map(([idx0, idx1]) => {
@@ -23,8 +23,8 @@ export async function GetEdgeFees(MultiPoolMetadata: MultiPoolMetadata, client: 
     }));
 
     // Create n x n array filled with NaN
-    const edgeFees = Array(MultiPoolMetadata.tokens.length).fill(null).map(() =>
-        Array(MultiPoolMetadata.tokens.length).fill(NaN)
+    const edgeFees = Array(multiPoolMetadata.tokens.length).fill(null).map(() =>
+        Array(multiPoolMetadata.tokens.length).fill(NaN)
     );
 
     // Fill in the values where i < j and convert from X128

@@ -1,11 +1,11 @@
 import { Decimal } from 'decimal.js';
-import { type Address, type Client, getContract } from "viem";
+import { type Address, type PublicClient, getContract } from "viem";
 import { iBurveMultiSimplexAbi } from "../abi/iBurveMultiSimplexAbi";
 import { X128 } from "../utils";
 
 // Gets all onchain efficiency factors for a given multi pool
 // Result is converted from an X128 to floating point
-export async function GetEs(poolAddress: Address, client: Client): Promise<Decimal[]> {
+export async function GetEs(poolAddress: Address, client: PublicClient): Promise<Decimal[]> {
     const simplex = getContract({
         address: poolAddress,
         abi: iBurveMultiSimplexAbi,

@@ -39,4 +39,11 @@ export const iBurveMultiSimplexAbi = [
         outputs: [{ name: '', internalType: 'uint256[16]', type: 'uint256[16]' }],
         stateMutability: 'view',
     },
+    {
+        type: 'function',
+        inputs: [],
+        name: 'getTokens',
+        outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+        stateMutability: 'view',
+    },
 ] as const

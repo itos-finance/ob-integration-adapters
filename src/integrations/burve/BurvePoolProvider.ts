@@ -9,14 +9,17 @@ import { iBurveMultiEventsAbi } from "./abi/iBurveMultiEventsAbi";
 import { iBurveMultiSwapAbi } from "./abi/iBurveMultiSwapAbi";
 import { GetAdjustor } from "./api/GetAdjustor";
 import { GetClosures } from "./api/GetClosures";
+import { GetContracts } from './api/GetContracts';
 import { GetEdgeFees } from "./api/GetEdgeFees";
 import { GetEs } from "./api/GetEs";
-import { MULTI_POOLS_METADATA } from "./contracts";
 import { Adjustor } from "./types/Adjustor";
 import { Closure } from "./types/Closure";
-import { MultiPool } from "./types/MultiPool";
+import { MultiPool, type MultiPoolMetadata } from "./types/MultiPool";
 import { MAX_TOKENS } from "./types/Token";
 import { X128 } from './utils';
+import { GetTokens } from './api/GetTokens';
+import { type Token } from './types/Token';
+
 
 export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
     readonly abi = iBurveMultiEventsAbi;
@@ -25,9 +28,19 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
     async getAllPools(): Promise<Closure[]> {
         const closures: Closure[] = [];
 
+        // Get multi pool addresses
+        const multiPoolAddresses = await GetContracts();
+        const multiPoolsMetadata: MultiPoolMetadata[] = await Promise.all(multiPoolAddresses.map(async (poolAddress: Address) => {
+            const tokens: Token[] = await GetTokens(poolAddress, this.client);
+            return {
+                address: poolAddress,
+                tokens: tokens
+            }
+        }));
+
         // Batch fetches all data from the chain
-        const allPromises = MULTI_POOLS_METADATA.map(metadata => Promise.all([
-            GetAdjustor(metadata, this.client),
+        const allPromises = multiPoolsMetadata.map(metadata => Promise.all([
+            GetAdjustor(metadata.address, this.client),
             GetEs(metadata.address as Address, this.client),
             GetEdgeFees(metadata, this.client),
             GetClosures(metadata, this.client)
@@ -36,10 +49,10 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         const results = await Promise.all(allPromises);
 
         // Process results
-        for (let i = 0; i < MULTI_POOLS_METADATA.length; i++) {
+        for (let i = 0; i < multiPoolsMetadata.length; i++) {
             const result = results[i]!;
             const [adjustor, es, edgeFees, closuresData] = result;
-            const metadata = MULTI_POOLS_METADATA[i]!;
+            const metadata = multiPoolsMetadata[i]!;
 
             // cache multi pool
             const multiPool: MultiPool = new MultiPool({ metadata, adjustor: new Adjustor(adjustor, this.client), es, taxes: edgeFees })
