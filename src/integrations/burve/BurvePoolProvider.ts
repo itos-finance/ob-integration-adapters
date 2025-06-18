@@ -119,10 +119,14 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
             const { cid, targetX128, balances } = log.args as { cid: number; targetX128: bigint; balances: readonly bigint[] };
 
             const key: Address = `${address}-${cid}`
-            const closure: Closure | undefined = this.pools.get(key);
+
+            let closure: Closure | undefined = this.pools.get(key);
+
+            // happens when a closure is added
             if (!closure) {
-                // should not be possible
-                return;
+                // balance and target are set below
+                closure = new Closure({ pool: multiPool, cid, balances: [], target: new Decimal(0) });
+                this.pools.set(key, closure)
             }
 
             closure.target = new Decimal(targetX128.toString()).div(new Decimal(2).toPower(128));
