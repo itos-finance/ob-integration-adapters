@@ -100,10 +100,10 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         if (log.eventName === "VertexAdded") {
             const { token } = log.args as { token: Address };
 
-            // fetch decimals, refresh es, refresh edge fees
-            const [decimals, es, edgeFees] = await Promise.all([
+            // fetch token decimals and refresh edge fees
+            // we don't update es because that is fetched with a set default given the MAX_TOKENS size
+            const [decimals, edgeFees] = await Promise.all([
                 GetDecimals(token, this.client),
-                GetEs(multiPool.metadata.address, this.client),
                 GetEdgeFees(multiPool.metadata.address, multiPool.metadata.tokens.length + 1, this.client)
             ]);
 
@@ -112,7 +112,6 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
                 address: token,
                 decimals: decimals
             })
-            multiPool.es = es;
             multiPool.taxes = edgeFees;
         }
 
