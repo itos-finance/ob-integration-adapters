@@ -85,4 +85,30 @@ export const iBurveMultiEventsAbi = [
         ],
         name: 'EfficiencyFactorChanged',
     },
+    {
+        type: 'event',
+        anonymous: false,
+        inputs: [
+          {
+            name: 'token',
+            internalType: 'address',
+            type: 'address',
+            indexed: true,
+          },
+          {
+            name: 'vault',
+            internalType: 'address',
+            type: 'address',
+            indexed: true,
+          },
+          { name: 'vid', internalType: 'VertexId', type: 'uint24', indexed: false },
+          {
+            name: 'vaultType',
+            internalType: 'enum VaultType',
+            type: 'uint8',
+            indexed: false,
+          },
+        ],
+        name: 'VertexAdded',
+      },
 ] as const

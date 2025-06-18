@@ -15,7 +15,7 @@ export interface MultiPoolMetadata {
 export class MultiPool {
     public readonly metadata: MultiPoolMetadata;
     public readonly adjustor: IAdjustor;
-    public readonly es: Decimal[];
+    public es: Decimal[];
     public taxes: number[][];
 
     constructor({ metadata, adjustor, es, taxes }: { metadata: MultiPoolMetadata, adjustor: IAdjustor, es: Decimal[], taxes: number[][] }) {

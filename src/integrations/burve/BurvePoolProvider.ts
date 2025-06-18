@@ -10,15 +10,15 @@ import { iBurveMultiSwapAbi } from "./abi/iBurveMultiSwapAbi";
 import { GetAdjustor } from "./api/GetAdjustor";
 import { GetClosures } from "./api/GetClosures";
 import { GetContracts } from './api/GetContracts';
+import { GetDecimals } from './api/GetDecimals';
 import { GetEdgeFees } from "./api/GetEdgeFees";
 import { GetEs } from "./api/GetEs";
+import { GetTokens } from './api/GetTokens';
 import { Adjustor } from "./types/Adjustor";
 import { Closure } from "./types/Closure";
 import { MultiPool, type MultiPoolMetadata } from "./types/MultiPool";
-import { MAX_TOKENS } from "./types/Token";
+import { MAX_TOKENS, type Token } from "./types/Token";
 import { X128 } from './utils';
-import { GetTokens } from './api/GetTokens';
-import { type Token } from './types/Token';
 
 
 export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
@@ -29,7 +29,7 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         const closures: Closure[] = [];
 
         // Get multi pool addresses
-        const multiPoolAddresses = await GetContracts();
+        const multiPoolAddresses = await GetContracts(); // pass 80069 for bepolia
         const multiPoolsMetadata: MultiPoolMetadata[] = await Promise.all(multiPoolAddresses.map(async (poolAddress: Address) => {
             const tokens: Token[] = await GetTokens(poolAddress, this.client);
             return {
@@ -42,8 +42,8 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         const allPromises = multiPoolsMetadata.map(metadata => Promise.all([
             GetAdjustor(metadata.address, this.client),
             GetEs(metadata.address as Address, this.client),
-            GetEdgeFees(metadata, this.client),
-            GetClosures(metadata, this.client)
+            GetEdgeFees(metadata.address, metadata.tokens.length, this.client),
+            GetClosures(metadata.address, metadata.tokens.length, this.client)
         ]));
 
         const results = await Promise.all(allPromises);
@@ -97,6 +97,25 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
             return;
         }
 
+        if (log.eventName === "VertexAdded") {
+            const { token } = log.args as { token: Address };
+
+            // fetch decimals, refresh es, refresh edge fees
+            const [decimals, es, edgeFees] = await Promise.all([
+                GetDecimals(token, this.client),
+                GetEs(multiPool.metadata.address, this.client),
+                GetEdgeFees(multiPool.metadata.address, multiPool.metadata.tokens.length + 1, this.client)
+            ]);
+
+            // update multi pool
+            multiPool.metadata.tokens.push({
+                address: token,
+                decimals: decimals
+            })
+            multiPool.es = es;
+            multiPool.taxes = edgeFees;
+        }
+
         if (log.eventName === "NewClosureBalances") {
             const { cid, targetX128, balances } = log.args as { cid: number; targetX128: bigint; balances: readonly bigint[] };
 
@@ -122,7 +141,7 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         // There's no way of knowing which edge fees are explicitly set vs which are from the default.
         // Which is why all edge fees are being refreshed.
         if (log.eventName === "SimplexFeesSet") {
-            const edgeFees: number[][] = await GetEdgeFees(multiPool.metadata, this.client)
+            const edgeFees: number[][] = await GetEdgeFees(multiPool.metadata.address, multiPool.metadata.tokens.length, this.client)
             multiPool.taxes = edgeFees;
         }
 
