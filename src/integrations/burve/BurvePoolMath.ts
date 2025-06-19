@@ -11,12 +11,12 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
     // @param tokenOut: The token to get out
     // @param amountIn: The exact amount of tokenIn to swap in
     // @returns The amount of tokenOut received (as a positive number)
-    async swapExactIn(
+    swapExactIn(
         closure: Closure,
         tokenIn: Address,
         tokenOut: Address,
         amountIn: bigint,
-    ): Promise<bigint> {
+    ): bigint {
         if (amountIn < 0) {
             throw new Error("Amount in must be positive")
         }
@@ -24,10 +24,10 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         const inIdx: number = closure.pool.getIdx(tokenIn)
         const outIdx: number = closure.pool.getIdx(tokenOut)
 
-        const nominalIn = await closure.pool.adjustor.toNominal(tokenIn, amountIn, false)
+        const nominalIn = closure.pool.adjustor.toNominal(tokenIn, amountIn, false)
         const [_, nominalOut] = closure.simSwap(inIdx, outIdx, new Decimal(nominalIn.toString()))
 
-        return await closure.pool.adjustor.toReal(tokenOut, BigInt(nominalOut.abs().toFixed(0, Decimal.ROUND_DOWN)), false);
+        return closure.pool.adjustor.toReal(tokenOut, BigInt(nominalOut.abs().toFixed(0, Decimal.ROUND_DOWN)), false);
     }
 
     // @param closure: The closure (pool) to swap through
@@ -35,12 +35,12 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
     // @param tokenOut: The token to get out
     // @param amountOut: The exact amount of tokenOut to get out
     // @returns The amount of tokenIn given (as a positive number)
-    async swapExactOut(
+    swapExactOut(
         closure: Closure,
         tokenIn: Address,
         tokenOut: Address,
         amountOut: bigint,
-    ): Promise<bigint> {
+    ): bigint {
         if (amountOut < 0) {
             throw new Error("Amount out must be positive")
         }
@@ -48,21 +48,21 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         const inIdx: number = closure.pool.getIdx(tokenIn)
         const outIdx: number = closure.pool.getIdx(tokenOut)
 
-        const nominalOut = await closure.pool.adjustor.toNominal(tokenOut, amountOut, false)
+        const nominalOut = closure.pool.adjustor.toNominal(tokenOut, amountOut, false)
         const [_, nominalIn] = closure.simSwap(outIdx, inIdx, new Decimal(nominalOut.toString()).neg())
 
-        return await closure.pool.adjustor.toReal(tokenIn, BigInt(nominalIn.toFixed(0, Decimal.ROUND_UP)), true);
+        return closure.pool.adjustor.toReal(tokenIn, BigInt(nominalIn.toFixed(0, Decimal.ROUND_UP)), true);
     }
 
     // @param closure: The closure (pool) to get the price from
     // @param tokenIn: The tokenIn
     // @param tokenOut: The tokenOut
     // @returns The price of tokenOut / tokenIn in real terms
-    async spotPriceNoFee(
+    spotPriceNoFee(
         closure: Closure,
         tokenIn: Address,
         tokenOut: Address,
-    ): Promise<number> {
+    ): number {
         const inIdx: number = closure.pool.getIdx(tokenIn)
         const outIdx: number = closure.pool.getIdx(tokenOut)
 
@@ -70,8 +70,8 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         const nominalPrice = closure.getPrice(inIdx, outIdx)
         
         const nominalFactor = 10n ** 18n 
-        const realIn = await closure.pool.adjustor.toReal(tokenIn, nominalFactor, false)
-        const realOut = await closure.pool.adjustor.toReal(tokenOut, nominalFactor, false)
+        const realIn = closure.pool.adjustor.toReal(tokenIn, nominalFactor, false)
+        const realOut = closure.pool.adjustor.toReal(tokenOut, nominalFactor, false)
 
         return nominalPrice.mul(new Decimal(realOut.toString())).div(new Decimal(realIn.toString())).toNumber()
     }

@@ -1,31 +1,72 @@
-import { type Address, type Client, getContract, type GetContractReturnType } from "viem";
-import { iAdjustorAbi } from "../abi/iAdjustorAbi";
+import { type Address } from "viem";
+import { AddressMap } from "../../../helpers/AddressMap";
+import Decimal from "decimal.js";
 
 // Adjustor interface
 export interface IAdjustor {
     // Converts a real amount to a nominal amount
-    toNominal(token: Address, real: bigint, roundUp: boolean): Promise<bigint>;
+    toNominal(token: Address, real: bigint, roundUp: boolean): bigint;
     // Converts a nominal amount to a real amount
-    toReal(token: Address, nominal: bigint, roundUp: boolean): Promise<bigint>;
+    toReal(token: Address, nominal: bigint, roundUp: boolean): bigint;
 }
 
-// Adjustor implementation for conversions onchain
-export class Adjustor implements IAdjustor {
-    private readonly contract: GetContractReturnType<typeof iAdjustorAbi, Client, Address>
+// Decimal adjustor - adjusts nominal representation to match 18 decimals
+export class DecimalAdjustor implements IAdjustor {
+    private tokenDecimals = new AddressMap<number>();
 
-    constructor(public readonly address: Address, public readonly client: Client) {
-        this.contract = getContract({
-            address: this.address,
-            abi: iAdjustorAbi,
-            client: this.client
-        });
+    registerToken(token: Address, decimals: number) {
+        this.tokenDecimals.set(token, decimals);
     }
 
-    async toNominal(token: Address, real: bigint, roundUp: boolean): Promise<bigint> {
-        return await this.contract.read.toNominal([token, real, roundUp]);
+    toNominal(token: Address, real: bigint, roundUp: boolean): bigint {
+        const decimals: number | undefined = this.tokenDecimals.get(token)
+        if (!decimals) {
+            throw new Error(`DecimalAdjustor: token ${token} not registered`);
+        }
+
+        if (decimals === 18) {
+            return real;
+        }
+
+        // less than 18 decimals shifts up
+        if (decimals < 18) {
+            const diff = 18 - decimals;
+            return real * (10n ** BigInt(diff));
+        }
+
+        // more than 18 decimals shifts down
+        const diff = decimals - 18;
+        const nominal = new Decimal(real.toString()).div(new Decimal(10).pow(diff))
+        if (roundUp) {
+            return BigInt(nominal.toFixed(0, Decimal.ROUND_UP));
+        } else {
+            return BigInt(nominal.toFixed(0, Decimal.ROUND_DOWN));
+        }
     }
 
-    async toReal(token: Address, nominal: bigint, roundUp: boolean): Promise<bigint> {
-        return await this.contract.read.toReal([token, nominal, roundUp]);
+    toReal(token: Address, nominal: bigint, roundUp: boolean): bigint {
+        const decimals: number | undefined = this.tokenDecimals.get(token);
+        if (!decimals) {
+            throw new Error(`DecimalAdjustor: token ${token} not registered`);
+        }
+
+        if (decimals === 18) {
+            return nominal;
+        }
+
+        // more than 18 decimals shifts up
+        if (decimals > 18) {
+            const diff = decimals - 18;
+            return nominal * (10n ** BigInt(diff));
+        }
+
+        // less than 18 decimals shifts down
+        const diff = 18 - decimals;
+        const real = new Decimal(nominal.toString()).div(new Decimal(10).pow(diff))
+        if (roundUp) {
+            return BigInt(real.toFixed(0, Decimal.ROUND_UP));
+        } else {
+            return BigInt(real.toFixed(0, Decimal.ROUND_DOWN));
+        }
     }
 }

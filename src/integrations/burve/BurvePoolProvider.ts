@@ -7,19 +7,17 @@ import { BasePoolStateProvider } from "../../base/BasePoolProvider";
 import { AddressMap } from "../../helpers/AddressMap";
 import { iBurveMultiEventsAbi } from "./abi/iBurveMultiEventsAbi";
 import { iBurveMultiSwapAbi } from "./abi/iBurveMultiSwapAbi";
-import { GetAdjustor } from "./api/GetAdjustor";
 import { GetClosures } from "./api/GetClosures";
 import { GetContracts } from './api/GetContracts';
 import { GetDecimals } from './api/GetDecimals';
 import { GetEdgeFees } from "./api/GetEdgeFees";
 import { GetEs } from "./api/GetEs";
 import { GetTokens } from './api/GetTokens';
-import { Adjustor } from "./types/Adjustor";
+import { DecimalAdjustor } from "./types/Adjustor";
 import { Closure } from "./types/Closure";
 import { MultiPool, type MultiPoolMetadata } from "./types/MultiPool";
 import { MAX_TOKENS, type Token } from "./types/Token";
 import { X128 } from './utils';
-
 
 export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
     readonly abi = iBurveMultiEventsAbi;
@@ -39,23 +37,25 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         }));
 
         // Batch fetches all data from the chain
-        const allPromises = multiPoolsMetadata.map(metadata => Promise.all([
-            GetAdjustor(metadata.address, this.client),
+        const multiPoolsData = await Promise.all(multiPoolsMetadata.map(metadata => Promise.all([
             GetEs(metadata.address as Address, this.client),
             GetEdgeFees(metadata.address, metadata.tokens.length, this.client),
             GetClosures(metadata.address, metadata.tokens.length, this.client)
-        ]));
-
-        const results = await Promise.all(allPromises);
+        ])));
 
         // Process results
         for (let i = 0; i < multiPoolsMetadata.length; i++) {
-            const result = results[i]!;
-            const [adjustor, es, edgeFees, closuresData] = result;
+            const [es, edgeFees, closuresData] = multiPoolsData[i]!;
             const metadata = multiPoolsMetadata[i]!;
 
+            // configure decimal adjustor
+            const decimalAdjustor = new DecimalAdjustor();
+            for (const token of metadata.tokens) {
+                decimalAdjustor.registerToken(token.address, token.decimals);
+            }
+
             // cache multi pool
-            const multiPool: MultiPool = new MultiPool({ metadata, adjustor: new Adjustor(adjustor, this.client), es, taxes: edgeFees })
+            const multiPool: MultiPool = new MultiPool({ metadata, adjustor: decimalAdjustor, es, taxes: edgeFees })
             this.multiPools.set(multiPool.metadata.address, multiPool)
 
             // create closures
@@ -112,6 +112,9 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
                 address: token,
                 decimals: decimals
             })
+            if (multiPool.adjustor instanceof DecimalAdjustor) {
+                multiPool.adjustor.registerToken(token, decimals);
+            }
             multiPool.taxes = edgeFees;
         }
 
