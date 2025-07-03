@@ -21,13 +21,22 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
             throw new Error("Amount in must be positive")
         }
 
-        const inIdx: number = closure.pool.getIdx(tokenIn)
-        const outIdx: number = closure.pool.getIdx(tokenOut)
+        const inIdx: number = closure.pool.getTokenIdx(tokenIn)
+        const outIdx: number = closure.pool.getTokenIdx(tokenOut)
 
         const nominalIn = closure.pool.adjustor.toNominal(tokenIn, amountIn, false)
         const [_, nominalOut] = closure.simSwap(inIdx, outIdx, new Decimal(nominalIn.toString()))
 
-        return closure.pool.adjustor.toReal(tokenOut, BigInt(nominalOut.abs().toFixed(0, Decimal.ROUND_DOWN)), false);
+        const amountOut: bigint = closure.pool.adjustor.toReal(tokenOut, BigInt(nominalOut.abs().toFixed(0, Decimal.ROUND_DOWN)), false);
+
+        // important: this only works for single closure swaps.
+        // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
+        // As the vault max withdraw is a per multi pool limit.
+        if (amountOut > closure.pool.metadata.vaults[outIdx]!.maxWithdraw) {
+            throw new Error("Insufficient liquidity")
+        }
+
+        return amountOut;
     }
 
     // @param closure: The closure (pool) to swap through
@@ -45,8 +54,15 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
             throw new Error("Amount out must be positive")
         }
 
-        const inIdx: number = closure.pool.getIdx(tokenIn)
-        const outIdx: number = closure.pool.getIdx(tokenOut)
+        const inIdx: number = closure.pool.getTokenIdx(tokenIn)
+        const outIdx: number = closure.pool.getTokenIdx(tokenOut)
+
+        // important: this only works for single closure swaps.
+        // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
+        // As the vault max withdraw is a per multi pool limit.
+        if (amountOut > closure.pool.metadata.vaults[outIdx]!.maxWithdraw) {
+            throw new Error("Insufficient liquidity")
+        }
 
         const nominalOut = closure.pool.adjustor.toNominal(tokenOut, amountOut, false)
         const [_, nominalIn] = closure.simSwap(outIdx, inIdx, new Decimal(nominalOut.toString()).neg())
@@ -63,8 +79,8 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         tokenIn: Address,
         tokenOut: Address,
     ): number {
-        const inIdx: number = closure.pool.getIdx(tokenIn)
-        const outIdx: number = closure.pool.getIdx(tokenOut)
+        const inIdx: number = closure.pool.getTokenIdx(tokenIn)
+        const outIdx: number = closure.pool.getTokenIdx(tokenOut)
 
         // nOut / nIn
         const nominalPrice = closure.getPrice(inIdx, outIdx)

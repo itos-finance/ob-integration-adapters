@@ -20,6 +20,12 @@ describe("BurvePoolMath", () => {
 				{ address: "0xUSDC", decimals: 6 },
 				{ address: "0xDAI", decimals: 18 },
 				{ address: "0xMIM", decimals: 18 },
+			],
+			vaults: [
+				// default these to something sufficiently large
+				{ address: "0xVaultUSDC", maxWithdraw: 2n ** 256n },
+				{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
+				{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
 			]
 		},
 		adjustor,
@@ -49,6 +55,12 @@ describe("BurvePoolMath", () => {
 					{ address: "0xUSDC", decimals: 6 },
 					{ address: "0xDAI", decimals: 18 },
 					{ address: "0xMIM", decimals: 18 },
+				],
+				vaults: [
+					// default these to something sufficiently large
+					{ address: "0xVaultUSDC", maxWithdraw: 2n ** 256n },
+					{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
+					{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
 				]
 			},
 			adjustor,
@@ -221,5 +233,15 @@ describe("BurvePoolMath", () => {
 
 	test("swapExactOut amount out is negative", () => {
 		expect(() => burvePoolMath.swapExactOut(balanced, "0xUSDC", "0xDAI", -1n)).toThrow("Amount out must be positive")
+	})
+
+	test("swapExactIn amount out is greater than vault max withdraw", () => {
+		multiPool.metadata.vaults[0]!.maxWithdraw = 0n
+		expect(() => burvePoolMath.swapExactIn(balanced, "0xDAI", "0xUSDC", 10n ** 18n)).toThrow("Insufficient liquidity")
+	})
+
+	test("swapExactOut amount out is greater than vault max withdraw", () => {
+		multiPool.metadata.vaults[0]!.maxWithdraw = 0n
+		expect(() => burvePoolMath.swapExactOut(balanced, "0xDAI", "0xUSDC", 10n ** 256n)).toThrow("Insufficient liquidity")
 	})
 });

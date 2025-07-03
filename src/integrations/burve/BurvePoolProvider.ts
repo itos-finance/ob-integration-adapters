@@ -1,7 +1,8 @@
 import { Decimal } from 'decimal.js';
 import {
     type Address,
-    type WatchContractEventOnLogsParameter
+    type WatchContractEventOnLogsParameter,
+    erc4626Abi
 } from "viem";
 import { BasePoolStateProvider } from "../../base/BasePoolProvider";
 import { AddressMap } from "../../helpers/AddressMap";
@@ -18,21 +19,31 @@ import { Closure } from "./types/Closure";
 import { MultiPool, type MultiPoolMetadata } from "./types/MultiPool";
 import { MAX_TOKENS, type Token } from "./types/Token";
 import { X128 } from './utils';
+import { GetVaults } from './api/GetVaults';
+import { GetVaultMaxWithdraw } from './api/GetVaultMaxWithdraw';
 
 export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
-    readonly abi = iBurveMultiEventsAbi;
+    readonly abi = [...iBurveMultiEventsAbi, ...erc4626Abi];
     readonly multiPools = new AddressMap<MultiPool>();
 
     async getAllPools(): Promise<Closure[]> {
         const closures: Closure[] = [];
 
         // Get multi pool addresses
-        const multiPoolAddresses = await GetContracts(); // pass 80069 for bepolia
+        const multiPoolAddresses: Address[] = await GetContracts();
         const multiPoolsMetadata: MultiPoolMetadata[] = await Promise.all(multiPoolAddresses.map(async (poolAddress: Address) => {
             const tokens: Token[] = await GetTokens(poolAddress, this.client);
+            const vaults: Address[] = await GetVaults(poolAddress, tokens.map(token => token.address), this.client);
+            const maxWithdraws: bigint[] = await Promise.all(vaults.map(async (vaultAddress: Address) => {
+                return await GetVaultMaxWithdraw(vaultAddress, poolAddress,this.client);
+            }));
             return {
                 address: poolAddress,
-                tokens: tokens
+                tokens: tokens,
+                vaults: vaults.map((vaultAddress: Address, index: number) => ({
+                    address: vaultAddress,
+                    maxWithdraw: maxWithdraws[index]!
+                }))
             }
         }));
 
@@ -91,12 +102,30 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         log: WatchContractEventOnLogsParameter<typeof this.abi>[number],
     ): Promise<void> {
         const address: Address = log.address
-        const multiPool: MultiPool | undefined = this.multiPools.get(address)
 
-        if (!multiPool) {
+        // Burve events
+        const multiPool: MultiPool | undefined = this.multiPools.get(address)
+        if (multiPool) {
+            await this._handleMultiPoolEvent(multiPool, log)
             return;
         }
 
+        // ERC4626 events
+        for (const multiPool of this.multiPools.values()) {
+            const vaultIdx: number = multiPool.getVaultIdx(log.address)
+            if (vaultIdx === -1) {
+                return;
+            }
+
+            // Refresh vault max withdraw limit when there is a balance change
+            if (log.eventName === "Deposit" || log.eventName === "Withdraw") {
+                const maxWithdraw: bigint = await GetVaultMaxWithdraw(log.address, multiPool.metadata.address, this.client);
+                multiPool.metadata.vaults[vaultIdx]!.maxWithdraw = maxWithdraw;
+            }
+        }
+    }
+
+    async _handleMultiPoolEvent(multiPool: MultiPool, log: WatchContractEventOnLogsParameter<typeof this.abi>[number]): Promise<void> {
         if (log.eventName === "VertexAdded") {
             const { token } = log.args as { token: Address };
 
@@ -121,7 +150,7 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         if (log.eventName === "NewClosureBalances") {
             const { cid, targetX128, balances } = log.args as { cid: number; targetX128: bigint; balances: readonly bigint[] };
 
-            const key: Address = `${address}-${cid}`
+            const key: Address = `${log.address}-${cid}`
 
             let closure: Closure | undefined = this.pools.get(key);
 
@@ -153,7 +182,7 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
 
         if (log.eventName === "EfficiencyFactorChanged") {
             const { token, toEsX128 } = log.args as { token: Address; toEsX128: bigint };
-            const idx: number = multiPool.getIdx(token);
+            const idx: number = multiPool.getTokenIdx(token);
             if (idx === -1) {
                 // should not be possible
                 return;
