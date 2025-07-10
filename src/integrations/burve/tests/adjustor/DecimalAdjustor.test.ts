@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DecimalAdjustor } from "../types/adjustor/DecimalAdjustor";
+import { DecimalAdjustor } from "../../types/adjustor/DecimalAdjustor";
 
 describe("DecimalAdjustor", () => {
     const adjustor: DecimalAdjustor = new DecimalAdjustor();
@@ -75,7 +75,7 @@ describe("DecimalAdjustor", () => {
         expect(nominalDown).toBe(10n ** 24n - 1n);
     });
 
-    // Unregistered tests
+    // unregistered tests
 
     test("toNominal unregistered", () => {
         expect(() => adjustor.toNominal("0x1", 10n ** 18n, false)).toThrow("DecimalAdjustor: token 0x1 not registered");
