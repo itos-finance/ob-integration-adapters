@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DecimalAdjustor } from "../types/Adjustor";
+import { DecimalAdjustor } from "../types/adjustor/DecimalAdjustor";
 
 describe("DecimalAdjustor", () => {
     const adjustor: DecimalAdjustor = new DecimalAdjustor();

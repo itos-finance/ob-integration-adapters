@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Decimal } from "decimal.js";
 import { BurvePoolMath } from "./BurvePoolMath";
-import { DecimalAdjustor } from "./types/Adjustor";
+import { DecimalAdjustor } from "./types/adjustor/DecimalAdjustor";
 import { Closure } from "./types/Closure";
 import { MultiPool } from "./types/MultiPool";
 

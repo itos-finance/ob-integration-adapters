@@ -14,7 +14,7 @@ import { GetDecimals } from './api/GetDecimals';
 import { GetEdgeFees } from "./api/GetEdgeFees";
 import { GetEs } from "./api/GetEs";
 import { GetTokens } from './api/GetTokens';
-import { DecimalAdjustor } from "./types/Adjustor";
+import { DecimalAdjustor } from "./types/adjustor/DecimalAdjustor";
 import { Closure } from "./types/Closure";
 import { MultiPool, type MultiPoolMetadata } from "./types/MultiPool";
 import { MAX_TOKENS, type Token } from "./types/Token";

@@ -2,7 +2,7 @@ import type { Address } from "viem"
 import type { Token } from "./Token"
 import type { Vault } from "./Vault"
 import { Decimal } from 'decimal.js';
-import type { IAdjustor } from "./Adjustor";
+import type { IAdjustor } from "./adjustor/IAdjustor";
 
 // Multi pool onchain data (parital - hardcoded addresses)
 export interface MultiPoolMetadata {
