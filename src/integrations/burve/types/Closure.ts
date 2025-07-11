@@ -61,7 +61,7 @@ export class Closure implements ClosureMetadata, BasePoolState {
 
     // Allows for use in AddressMap.
     get address(): Address {
-        return `${this.pool.metadata.address}-${this.cid}`
+        return `${this.pool.address}-${this.cid}`
     }
 
     // Sim swap in nominal terms.

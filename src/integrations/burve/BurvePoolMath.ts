@@ -32,7 +32,7 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         // important: this only works for single closure swaps.
         // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
         // As the vault max withdraw is a per multi pool limit.
-        if (amountOut > closure.pool.metadata.vaults[outIdx]!.maxWithdraw) {
+        if (amountOut > closure.pool.vaults[outIdx]!.maxWithdraw) {
             throw new Error("Insufficient liquidity")
         }
 
@@ -60,7 +60,7 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         // important: this only works for single closure swaps.
         // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
         // As the vault max withdraw is a per multi pool limit.
-        if (amountOut > closure.pool.metadata.vaults[outIdx]!.maxWithdraw) {
+        if (amountOut > closure.pool.vaults[outIdx]!.maxWithdraw) {
             throw new Error("Insufficient liquidity")
         }
 
