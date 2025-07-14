@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import Decimal from "decimal.js";
-import { E4626Adjustor } from "../../types/adjustor/E4626Adjustor";
+import { OffchainAdjustor } from "../types/OffchainAdjustor";
 
-describe("E4626Adjustor", () => {
-    const adjustor: E4626Adjustor = new E4626Adjustor();
+describe("OffchainAdjustor", () => {
+    const adjustor: OffchainAdjustor = new OffchainAdjustor();
     adjustor.registerToken("0xUSDC", new Decimal("1.013189210815576"));
 
     // toNominal tests
@@ -29,10 +29,10 @@ describe("E4626Adjustor", () => {
     // unregistered tests
 
     test("toNominal unregistered", () => {
-        expect(() => adjustor.toNominal("0x1", 10n ** 18n, false)).toThrow("E4626Adjustor: token 0x1 not registered");
+        expect(() => adjustor.toNominal("0x1", 10n ** 18n, false)).toThrow("OffchainAdjustor: token 0x1 not registered");
     });
 
     test("toReal unregistered", () => {
-        expect(() => adjustor.toReal("0x1", 10n ** 18n, false)).toThrow("E4626Adjustor: token 0x1 not registered");
+        expect(() => adjustor.toReal("0x1", 10n ** 18n, false)).toThrow("OffchainAdjustor: token 0x1 not registered");
     });
 }); 

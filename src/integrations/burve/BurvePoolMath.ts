@@ -24,10 +24,10 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         const inIdx: number = closure.pool.getTokenIdx(tokenIn)
         const outIdx: number = closure.pool.getTokenIdx(tokenOut)
 
-        const nominalIn = closure.pool.adjustor.toNominal(tokenIn, amountIn, false)
+        const nominalIn = closure.pool.offchainAdjustor.toNominal(tokenIn, amountIn, false)
         const [_, nominalOut] = closure.simSwap(inIdx, outIdx, new Decimal(nominalIn.toString()))
 
-        const amountOut: bigint = closure.pool.adjustor.toReal(tokenOut, BigInt(nominalOut.abs().toFixed(0, Decimal.ROUND_DOWN)), false);
+        const amountOut: bigint = closure.pool.offchainAdjustor.toReal(tokenOut, BigInt(nominalOut.abs().toFixed(0, Decimal.ROUND_DOWN)), false);
 
         // important: this only works for single closure swaps.
         // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
@@ -64,10 +64,10 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
             throw new Error("Insufficient liquidity")
         }
 
-        const nominalOut = closure.pool.adjustor.toNominal(tokenOut, amountOut, false)
+        const nominalOut = closure.pool.offchainAdjustor.toNominal(tokenOut, amountOut, false)
         const [_, nominalIn] = closure.simSwap(outIdx, inIdx, new Decimal(nominalOut.toString()).neg())
 
-        return closure.pool.adjustor.toReal(tokenIn, BigInt(nominalIn.toFixed(0, Decimal.ROUND_UP)), true);
+        return closure.pool.offchainAdjustor.toReal(tokenIn, BigInt(nominalIn.toFixed(0, Decimal.ROUND_UP)), true);
     }
 
     // @param closure: The closure (pool) to get the price from
@@ -86,8 +86,8 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         const nominalPrice = closure.getPrice(inIdx, outIdx)
         
         const nominalFactor = 10n ** 18n 
-        const realIn = closure.pool.adjustor.toReal(tokenIn, nominalFactor, false)
-        const realOut = closure.pool.adjustor.toReal(tokenOut, nominalFactor, false)
+        const realIn = closure.pool.offchainAdjustor.toReal(tokenIn, nominalFactor, false)
+        const realOut = closure.pool.offchainAdjustor.toReal(tokenOut, nominalFactor, false)
 
         return nominalPrice.mul(new Decimal(realOut.toString())).div(new Decimal(realIn.toString())).toNumber()
     }

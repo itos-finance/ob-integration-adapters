@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { Decimal } from "decimal.js";
 import { BurvePoolMath } from "./BurvePoolMath";
-import { DecimalAdjustor } from "./types/adjustor/DecimalAdjustor";
+import { OffchainAdjustor } from "./types/OffchainAdjustor";
 import { Closure } from "./types/Closure";
 import { MultiPool } from "./types/MultiPool";
 
 describe("BurvePoolMath", () => {
 	const burvePoolMath = new BurvePoolMath()
 
-	const adjustor = new DecimalAdjustor()
-	adjustor.registerToken("0xUSDC", 6)
-	adjustor.registerToken("0xDAI", 18)
-	adjustor.registerToken("0xMIM", 18)
+	const adjustor = new OffchainAdjustor()
+	adjustor.registerToken("0xUSDC", new Decimal("1e-12"))
+	adjustor.registerToken("0xDAI", new Decimal("1"))
+	adjustor.registerToken("0xMIM", new Decimal("1"))
 
 	const multiPool = new MultiPool({
 		address: "0xMultiPool",
@@ -26,7 +26,8 @@ describe("BurvePoolMath", () => {
 			{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
 			{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
 		],
-		adjustor,
+		adjustorAddress: "0xAdjustor",
+		offchainAdjustor: adjustor,
 		es: [new Decimal(400), new Decimal(200), new Decimal(100)],
 		taxes: [[NaN, 0.0001, 0.0001], [NaN, NaN, 0.0001], [NaN, NaN, NaN]],
 	})
@@ -59,7 +60,8 @@ describe("BurvePoolMath", () => {
 				{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
 				{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
 			],
-			adjustor,
+			adjustorAddress: "0xAdjustor",
+			offchainAdjustor: adjustor,
 			es: [new Decimal(10), new Decimal(10), new Decimal(10)],
 			taxes: [[NaN, 0.0, 0.0], [NaN, NaN, 0.0], [NaN, NaN, NaN]],
 		}),

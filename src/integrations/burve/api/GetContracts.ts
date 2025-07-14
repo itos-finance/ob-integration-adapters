@@ -1,6 +1,6 @@
 import { type Address } from "viem";
 import { MultiPool } from '../types/MultiPool';
-import { DecimalAdjustor } from '../types/adjustor/DecimalAdjustor';
+import { OffchainAdjustor } from '../types/OffchainAdjustor';
 import { ERC20API } from './ERC20';
 import { ERC4626API } from './ERC4626';
 import { MultiPoolAPI } from './MultiPool';
@@ -19,7 +19,7 @@ export async function CreateMultiPool(api: MultiPoolAPI): Promise<MultiPool> {
     const tokenAddresses: Address[] = await api.getTokens();
 
     // Run all independent operations in parallel
-    const [tokens, vaults, es, edgeFees] = await Promise.all([
+    const [tokens, vaults, es, edgeFees, adjustorAddress] = await Promise.all([
         // Get tokens with decimals
         Promise.all(tokenAddresses.map(async (tokenAddress: Address) => {
             const erc20Api: ERC20API = new ERC20API(tokenAddress, api.client);
@@ -45,14 +45,19 @@ export async function CreateMultiPool(api: MultiPoolAPI): Promise<MultiPool> {
         api.getEs(),
 
         // Get edge fees (needs token count)
-        api.getEdgeFees(tokenAddresses.length)
+        api.getEdgeFees(tokenAddresses.length),
+
+        // Adjustor address
+        api.getAdjustor()
     ]);
 
-    // Configure decimal adjustor
-    const adjustor: DecimalAdjustor = new DecimalAdjustor();
-    for (const token of tokens) {
-        adjustor.registerToken(token.address, token.decimals);
-    }
-
-    return new MultiPool({ address: api.address, tokens, vaults, adjustor, es, taxes: edgeFees })
+    return new MultiPool({
+        address: api.address,
+        tokens,
+        vaults,
+        adjustorAddress,
+        offchainAdjustor: new OffchainAdjustor(),
+        es,
+        taxes: edgeFees
+    })
 }

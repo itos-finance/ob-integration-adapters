@@ -8,18 +8,20 @@ import { BasePoolStateProvider } from "../../base/BasePoolProvider";
 import { AddressMap } from "../../helpers/AddressMap";
 import { iBurveMultiEventsAbi } from "./abi/iBurveMultiEventsAbi";
 import { iBurveMultiSwapAbi } from "./abi/iBurveMultiSwapAbi";
+import { mixedAdjustorEventsAbi } from './abi/mixedAdjustorEventsAbi';
+import { AdjustorAPI } from './api/Adjustor';
 import { ERC20API } from './api/ERC20';
 import { ERC4626API } from './api/ERC4626';
 import { CreateMultiPool, GetContracts } from './api/GetContracts';
 import { MultiPoolAPI } from './api/MultiPool';
-import { DecimalAdjustor } from "./types/adjustor/DecimalAdjustor";
 import { Closure, type ClosureMetadata } from "./types/Closure";
 import { MultiPool } from "./types/MultiPool";
-import { MAX_TOKENS } from "./types/Token";
+import { OffchainAdjustor } from './types/OffchainAdjustor';
+import { MAX_TOKENS, type Token } from "./types/Token";
 import { X128 } from './utils';
 
 export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
-    readonly abi = [...iBurveMultiEventsAbi, ...erc4626Abi];
+    readonly abi = [...iBurveMultiEventsAbi, ...erc4626Abi, ...mixedAdjustorEventsAbi];
     readonly multiPools = new AddressMap<MultiPool>();
 
     async getAllPools(): Promise<Closure[]> {
@@ -44,6 +46,14 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
                 return new Closure({ pool: multiPool, ...closureMetadata });
             });
         }))).flat();
+
+        // Init offchain adjustors
+        await this._updateOffchainAdjustors();
+
+        // Refresh offchain adjustors every 15 minutes
+        setInterval(async () => {
+                await this._updateOffchainAdjustors();
+        }, 15 * 60 * 1000);
 
         return closures;
     }
@@ -71,27 +81,38 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
     async handleEvent(
         log: WatchContractEventOnLogsParameter<typeof this.abi>[number],
     ): Promise<void> {
-        const address: Address = log.address
-
         // Burve events
-        const multiPool: MultiPool | undefined = this.multiPools.get(address)
+        const multiPool: MultiPool | undefined = this.multiPools.get(log.address)
         if (multiPool) {
             await this._handleMultiPoolEvent(multiPool, log)
             return;
         }
 
+        const allMultiPools: MultiPool[] = Array.from(this.multiPools.values());
+
         // ERC4626 events
-        for (const multiPool of this.multiPools.values()) {
-            const vaultIdx: number = multiPool.getVaultIdx(log.address)
+        for (const vaultMultiPool of allMultiPools) {
+            const vaultIdx: number = vaultMultiPool.getVaultIdx(log.address)
+
+            // Multi pool does not use this vault
             if (vaultIdx === -1) {
-                return;
+                continue;
             }
 
             // Refresh vault max withdraw limit when there is a balance change
             if (log.eventName === "Deposit" || log.eventName === "Withdraw") {
                 const erc4626Api: ERC4626API = new ERC4626API(log.address, this.client);
-                const maxWithdraw: bigint = await erc4626Api.getMaxWithdraw(multiPool.address);
-                multiPool.vaults[vaultIdx]!.maxWithdraw = maxWithdraw;
+                const maxWithdraw: bigint = await erc4626Api.getMaxWithdraw(vaultMultiPool.address);
+                vaultMultiPool.vaults[vaultIdx]!.maxWithdraw = maxWithdraw;
+            }
+        }
+
+        // Mixed Adjustor events
+        const adjustorMultiPool: MultiPool | undefined = allMultiPools.find((mp: MultiPool) => mp.adjustorAddress.toLowerCase() === log.address.toLowerCase())
+        if (adjustorMultiPool) {
+            // Note: for simplicity refresh all tokens on AdjustorChanged to avoid token validation
+            if (log.eventName === "AdjustorChanged" || log.eventName === "DefaultAdjustorChanged") {
+                await this._updateOffchainAdjustor(adjustorMultiPool);
             }
         }
     }
@@ -100,9 +121,9 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         const multiPoolApi: MultiPoolAPI = new MultiPoolAPI(multiPool.address, this.client);
 
         if (log.eventName === "VertexAdded") {
-            const { token } = log.args as { token: Address };
+            const { token: tokenAddress } = log.args as { token: Address };
 
-            const erc20Api: ERC20API = new ERC20API(token, this.client);
+            const erc20Api: ERC20API = new ERC20API(tokenAddress, this.client);
 
             // fetch token decimals and refresh edge fees
             // we don't update es because that is fetched with a set default given the MAX_TOKENS size
@@ -111,15 +132,18 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
                 multiPoolApi.getEdgeFees(multiPool.tokens.length + 1)
             ]);
 
-            // update multi pool
-            multiPool.tokens.push({
-                address: token,
+            const token: Token = {
+                address: tokenAddress,
                 decimals: decimals
-            })
-            if (multiPool.adjustor instanceof DecimalAdjustor) {
-                multiPool.adjustor.registerToken(token, decimals);
             }
+
+            const adjustor: AdjustorAPI = new AdjustorAPI(multiPool.adjustorAddress, this.client);
+            const realPerNominalRatio: Decimal = await adjustor.realPerNominalRatio(token);
+
+            // update multi pool
+            multiPool.tokens.push(token)
             multiPool.taxes = edgeFees;
+            multiPool.offchainAdjustor.registerToken(token.address, realPerNominalRatio);
         }
 
         if (log.eventName === "NewClosureBalances") {
@@ -164,6 +188,29 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
 
             multiPool.es[idx] = new Decimal(toEsX128.toString()).div(X128);
         }
+
+        if (log.eventName === "AdjustorChanged") {
+            const { toAdjustor } = log.args as { toAdjustor: Address };
+            multiPool.adjustorAddress = toAdjustor;
+            multiPool.offchainAdjustor = new OffchainAdjustor();
+            await this._updateOffchainAdjustor(multiPool);
+        }
+    }
+
+    /// Updates token ratios in each pool's offchain adjustor
+    async _updateOffchainAdjustors(): Promise<void> {
+        await Promise.all(this.multiPools.values().map(async (multiPool: MultiPool) => {
+            await this._updateOffchainAdjustor(multiPool);
+        }));
+    }
+
+    // Updates token ratios in a single pool's offchain adjustor
+    async _updateOffchainAdjustor(multiPool: MultiPool): Promise<void> {
+        const adjustor: AdjustorAPI = new AdjustorAPI(multiPool.adjustorAddress, this.client);
+        await Promise.all(multiPool.tokens.map(async (token) => {
+            const realPerNominalRatio: Decimal = await adjustor.realPerNominalRatio(token);
+            multiPool.offchainAdjustor.registerToken(token.address, realPerNominalRatio);
+        }));
     }
 
     // NOT IMPLEMENTED - interface methods inherited from BasePoolStateProvider are not compatible with Burve.

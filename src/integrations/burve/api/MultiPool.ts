@@ -27,6 +27,11 @@ export class MultiPoolAPI {
 
     // -- Simplex Facet --
 
+    // Get adjustor
+    async getAdjustor(): Promise<Address> {
+        return await this.contract.read.getAdjustor();
+    }
+
     // Gets all tokens
     async getTokens(): Promise<Address[]> {
         return await this.contract.read.getTokens() as Address[];
