@@ -1,34 +1,33 @@
 import { describe, expect, test } from "bun:test";
 import { Decimal } from "decimal.js";
 import { BurvePoolMath } from "./BurvePoolMath";
-import { DecimalAdjustor } from "./types/Adjustor";
+import { OffchainAdjustor } from "./types/OffchainAdjustor";
 import { Closure } from "./types/Closure";
 import { MultiPool } from "./types/MultiPool";
 
 describe("BurvePoolMath", () => {
 	const burvePoolMath = new BurvePoolMath()
 
-	const adjustor = new DecimalAdjustor()
-	adjustor.registerToken("0xUSDC", 6)
-	adjustor.registerToken("0xDAI", 18)
-	adjustor.registerToken("0xMIM", 18)
+	const adjustor = new OffchainAdjustor()
+	adjustor.registerToken("0xUSDC", new Decimal("1e-12"))
+	adjustor.registerToken("0xDAI", new Decimal("1"))
+	adjustor.registerToken("0xMIM", new Decimal("1"))
 
 	const multiPool = new MultiPool({
-		metadata: {
-			address: "0xMultiPool",
-			tokens: [
-				{ address: "0xUSDC", decimals: 6 },
-				{ address: "0xDAI", decimals: 18 },
-				{ address: "0xMIM", decimals: 18 },
-			],
-			vaults: [
-				// default these to something sufficiently large
-				{ address: "0xVaultUSDC", maxWithdraw: 2n ** 256n },
-				{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
-				{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
-			]
-		},
-		adjustor,
+		address: "0xMultiPool",
+		tokens: [
+			{ address: "0xUSDC", decimals: 6 },
+			{ address: "0xDAI", decimals: 18 },
+			{ address: "0xMIM", decimals: 18 },
+		],
+		vaults: [
+			// default these to something sufficiently large
+			{ address: "0xVaultUSDC", maxWithdraw: 2n ** 256n },
+			{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
+			{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
+		],
+		adjustorAddress: "0xAdjustor",
+		offchainAdjustor: adjustor,
 		es: [new Decimal(400), new Decimal(200), new Decimal(100)],
 		taxes: [[NaN, 0.0001, 0.0001], [NaN, NaN, 0.0001], [NaN, NaN, NaN]],
 	})
@@ -49,21 +48,20 @@ describe("BurvePoolMath", () => {
 
 	const balancedNoTax = new Closure({
 		pool: new MultiPool({
-			metadata: {
-				address: "0xMultiPool",
-				tokens: [
-					{ address: "0xUSDC", decimals: 6 },
-					{ address: "0xDAI", decimals: 18 },
-					{ address: "0xMIM", decimals: 18 },
-				],
-				vaults: [
-					// default these to something sufficiently large
-					{ address: "0xVaultUSDC", maxWithdraw: 2n ** 256n },
-					{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
-					{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
-				]
-			},
-			adjustor,
+			address: "0xMultiPool",
+			tokens: [
+				{ address: "0xUSDC", decimals: 6 },
+				{ address: "0xDAI", decimals: 18 },
+				{ address: "0xMIM", decimals: 18 },
+			],
+			vaults: [
+				// default these to something sufficiently large
+				{ address: "0xVaultUSDC", maxWithdraw: 2n ** 256n },
+				{ address: "0xVaultDAI", maxWithdraw: 2n ** 256n },
+				{ address: "0xVaultMIM", maxWithdraw: 2n ** 256n },
+			],
+			adjustorAddress: "0xAdjustor",
+			offchainAdjustor: adjustor,
 			es: [new Decimal(10), new Decimal(10), new Decimal(10)],
 			taxes: [[NaN, 0.0, 0.0], [NaN, NaN, 0.0], [NaN, NaN, NaN]],
 		}),
@@ -236,12 +234,12 @@ describe("BurvePoolMath", () => {
 	})
 
 	test("swapExactIn amount out is greater than vault max withdraw", () => {
-		multiPool.metadata.vaults[0]!.maxWithdraw = 0n
+		multiPool.vaults[0]!.maxWithdraw = 0n
 		expect(() => burvePoolMath.swapExactIn(balanced, "0xDAI", "0xUSDC", 10n ** 18n)).toThrow("Insufficient liquidity")
 	})
 
 	test("swapExactOut amount out is greater than vault max withdraw", () => {
-		multiPool.metadata.vaults[0]!.maxWithdraw = 0n
+		multiPool.vaults[0]!.maxWithdraw = 0n
 		expect(() => burvePoolMath.swapExactOut(balanced, "0xDAI", "0xUSDC", 10n ** 256n)).toThrow("Insufficient liquidity")
 	})
 });
