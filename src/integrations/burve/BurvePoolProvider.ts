@@ -20,29 +20,45 @@ import { MultiPool, type MultiPoolMetadata } from "./types/MultiPool";
 import { MAX_TOKENS, type Token } from "./types/Token";
 import { X128 } from './utils';
 import { GetVaults } from './api/GetVaults';
-import { GetVaultMaxWithdraw } from './api/GetVaultMaxWithdraw';
+import { ERC4626API } from './api/ERC4626';
+import { iDolomiteMarginAbi } from './abi/iDolomiteMarginAbi';
+import { DolomiteMarginAPI } from './api/DolomiteMargin';
+
+const BERACHAIN_DOLOMITE_MARGIN_ADDRESS = '0x003ca23fd5f0ca87d01f6ec6cd14a8ae60c2b97d';
+const BERACHAIN_MEAD_ADDRESS = '0xEDB5180661F56077292C92Ab40B1AC57A279a396';
 
 export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
-    readonly abi = [...iBurveMultiEventsAbi, ...erc4626Abi];
+    readonly abi = [...iBurveMultiEventsAbi, ...iDolomiteMarginAbi];
     readonly multiPools = new AddressMap<MultiPool>();
 
     async getAllPools(): Promise<Closure[]> {
         const closures: Closure[] = [];
+
+        const dolomiteMargin = new DolomiteMarginAPI(BERACHAIN_DOLOMITE_MARGIN_ADDRESS, this.client);
 
         // Get multi pool addresses
         const multiPoolAddresses: Address[] = await GetContracts();
         const multiPoolsMetadata: MultiPoolMetadata[] = await Promise.all(multiPoolAddresses.map(async (poolAddress: Address) => {
             const tokens: Token[] = await GetTokens(poolAddress, this.client);
             const vaults: Address[] = await GetVaults(poolAddress, tokens.map(token => token.address), this.client);
-            const maxWithdraws: bigint[] = await Promise.all(vaults.map(async (vaultAddress: Address) => {
-                return await GetVaultMaxWithdraw(vaultAddress, poolAddress,this.client);
+            const dolomiteMarketIds: bigint[] = await Promise.all(tokens.map(async (token: Token) => {
+                if (BERACHAIN_MEAD_ADDRESS === token.address) {
+                    return 0n;
+                }
+                return await dolomiteMargin.getMarketIdByTokenAddress(token.address);
+            }));
+            const totalAssets: bigint[] = await Promise.all(vaults.map(async (vaultAddress: Address) => {
+                const erc4626 = new ERC4626API(vaultAddress, this.client);
+                return await erc4626.getTotalAssets();
             }));
             return {
                 address: poolAddress,
                 tokens: tokens,
                 vaults: vaults.map((vaultAddress: Address, index: number) => ({
                     address: vaultAddress,
-                    maxWithdraw: maxWithdraws[index]!
+                    totalAssets: totalAssets[index]!,
+                    dolomiteMarketId: dolomiteMarketIds[index]!,
+                    hasWithdrawLimit: tokens[index]!.address !== BERACHAIN_MEAD_ADDRESS
                 }))
             }
         }));
@@ -101,6 +117,32 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
     async handleEvent(
         log: WatchContractEventOnLogsParameter<typeof this.abi>[number],
     ): Promise<void> {
+        // Dolomite margin deposit event
+        if (log.eventName === "LogDeposit") {
+            const { update, market } = log.args as { update: { deltaWei: { sign: boolean, value: bigint }, newPar: { sign: boolean, value: bigint } }, market: bigint };
+
+            for (const multiPool of this.multiPools.values()) {
+                const vaultIdx: number = multiPool.getVaultIdxByDolomiteMarketId(market)
+                if (vaultIdx === -1) {
+                    return;
+                }
+                multiPool.metadata.vaults[vaultIdx]!.totalAssets += update.deltaWei.value;
+            }
+        }
+
+        // Dolomite margin withdraw event
+        if (log.eventName === "LogWithdraw") {
+            const { update, market } = log.args as { update: { deltaWei: { sign: boolean, value: bigint }, newPar: { sign: boolean, value: bigint } }, market: bigint };
+
+            for (const multiPool of this.multiPools.values()) {
+                const vaultIdx: number = multiPool.getVaultIdxByDolomiteMarketId(market)
+                if (vaultIdx === -1) {
+                    return;
+                }
+                multiPool.metadata.vaults[vaultIdx]!.totalAssets -= update.deltaWei.value;
+            }
+        }
+
         const address: Address = log.address
 
         // Burve events
@@ -108,20 +150,6 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
         if (multiPool) {
             await this._handleMultiPoolEvent(multiPool, log)
             return;
-        }
-
-        // ERC4626 events
-        for (const multiPool of this.multiPools.values()) {
-            const vaultIdx: number = multiPool.getVaultIdx(log.address)
-            if (vaultIdx === -1) {
-                return;
-            }
-
-            // Refresh vault max withdraw limit when there is a balance change
-            if (log.eventName === "Deposit" || log.eventName === "Withdraw") {
-                const maxWithdraw: bigint = await GetVaultMaxWithdraw(log.address, multiPool.metadata.address, this.client);
-                multiPool.metadata.vaults[vaultIdx]!.maxWithdraw = maxWithdraw;
-            }
         }
     }
 

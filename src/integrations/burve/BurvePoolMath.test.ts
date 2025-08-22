@@ -236,12 +236,12 @@ describe("BurvePoolMath", () => {
 	})
 
 	test("swapExactIn amount out is greater than vault max withdraw", () => {
-		multiPool.metadata.vaults[0]!.maxWithdraw = 0n
+		multiPool.metadata.vaults[0]!.totalAssets = 0n
 		expect(() => burvePoolMath.swapExactIn(balanced, "0xDAI", "0xUSDC", 10n ** 18n)).toThrow("Insufficient liquidity")
 	})
 
 	test("swapExactOut amount out is greater than vault max withdraw", () => {
-		multiPool.metadata.vaults[0]!.maxWithdraw = 0n
+		multiPool.metadata.vaults[0]!.totalAssets = 0n
 		expect(() => burvePoolMath.swapExactOut(balanced, "0xDAI", "0xUSDC", 10n ** 256n)).toThrow("Insufficient liquidity")
 	})
 });

@@ -2,6 +2,7 @@ import { Decimal } from "decimal.js";
 import type { Address } from "viem";
 import { BasePoolMath } from "../../base/BasePoolMath";
 import { Closure } from "./types/Closure";
+import type { Vault } from "./types/Vault";
 
 // Burve pool math implementation
 export class BurvePoolMath extends BasePoolMath<Closure> {
@@ -32,7 +33,8 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         // important: this only works for single closure swaps.
         // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
         // As the vault max withdraw is a per multi pool limit.
-        if (amountOut > closure.pool.metadata.vaults[outIdx]!.maxWithdraw) {
+        const vault: Vault = closure.pool.metadata.vaults[outIdx]!;
+        if (vault.hasWithdrawLimit && (amountOut > vault.totalAssets)) {
             throw new Error("Insufficient liquidity")
         }
 
@@ -60,7 +62,8 @@ export class BurvePoolMath extends BasePoolMath<Closure> {
         // important: this only works for single closure swaps.
         // A multi hop swap through multiple closures should compare the cumulative amount out against the vault max withdraw.
         // As the vault max withdraw is a per multi pool limit.
-        if (amountOut > closure.pool.metadata.vaults[outIdx]!.maxWithdraw) {
+        const vault: Vault = closure.pool.metadata.vaults[outIdx]!;
+        if (vault.hasWithdrawLimit && (amountOut > vault.totalAssets)) {
             throw new Error("Insufficient liquidity")
         }
 

@@ -2,6 +2,9 @@ import { http, createPublicClient } from "viem";
 import { berachain, berachainBepolia } from "viem/chains";
 
 export const berachainClient = createPublicClient({
+	batch: {
+		multicall: true
+	},
 	chain: berachain,
 	transport: http(),
 });

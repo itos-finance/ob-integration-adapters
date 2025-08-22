@@ -37,6 +37,10 @@ export class MultiPool {
     getVaultIdx(vault: Address): number {
         return this.metadata.vaults.findIndex((v) => v.address.toLowerCase() === vault.toLowerCase());
     }
+    // Gets the index of a vault in the pool. -1 if not found.
+    getVaultIdxByDolomiteMarketId(dolomiteMarketId: bigint): number {
+        return this.metadata.vaults.findIndex((v) => v.dolomiteMarketId === dolomiteMarketId);
+    }
 
     // Gets the tax for a given token pair
     getTax(inIdx: number, outIdx: number): number {
