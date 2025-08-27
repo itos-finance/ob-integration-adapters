@@ -23,6 +23,7 @@ import { GetVaults } from './api/GetVaults';
 import { ERC4626API } from './api/ERC4626';
 import { iDolomiteMarginAbi } from './abi/iDolomiteMarginAbi';
 import { DolomiteMarginAPI } from './api/DolomiteMargin';
+import { CID } from './types/cid';
 
 const BERACHAIN_DOLOMITE_MARGIN_ADDRESS = '0x003ca23fd5f0ca87d01f6ec6cd14a8ae60c2b97d';
 const BERACHAIN_MEAD_ADDRESS = '0xEDB5180661F56077292C92Ab40B1AC57A279a396';
@@ -87,7 +88,9 @@ export class BurvePoolProvider extends BasePoolStateProvider<Closure> {
 
             // create closures
             for (const cData of closuresData) {
-                closures.push(new Closure({ pool: multiPool, ...cData }));
+                if (CID.tokenCount(cData.cid) > 1) {
+                    closures.push(new Closure({ pool: multiPool, ...cData }));
+                }
             }
         }
 
